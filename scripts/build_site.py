@@ -166,10 +166,38 @@ def build_feed(show: dict, episodes: list[Episode]) -> ET.ElementTree:
     return tree
 
 
+FONTS = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+    # 字体不阻塞页面：加载不到（比如网络访问不了 Google）就用系统字体
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600'
+    '&family=IBM+Plex+Sans+SC:wght@400;600&display=swap" media="print" onload="this.media=\'all\'">'
+)
+INDEX_CSS = """
+.hero { display: grid; grid-template-columns: 8rem 1fr; gap: 1.5rem; align-items: start; padding-bottom: 2rem; }
+.hero img { display: block; width: 100%; }
+.hero p { margin: 0.5rem 0 0; }
+.episodes { padding-top: 2rem; border-top: 1px solid var(--border-subtle); }
+.episode { margin-top: 1rem; }
+.episode audio { display: block; width: 100%; margin: 0.75rem 0; }
+.episode p { margin: 0.5rem 0 0; }
+.episode ul { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+.episode li { position: relative; margin-top: 0.25rem; padding-left: 1.25rem; }
+.episode li::before { content: "\\2013"; position: absolute; left: 0; }
+@media (max-width: 30rem) { .hero { grid-template-columns: 5rem 1fr; gap: 1rem; } }
+"""
+
+
+def carbon_css() -> str:
+    return (ROOT / "web" / "carbon.css").read_text(encoding="utf-8")
+
+
 def render_index(show: dict, episodes: list[Episode]) -> str:
+    title = html.escape(show["title"])
     items = "\n".join(
-        f'<article id="{e.number}"><h2>{html.escape(e.title)}</h2>'
-        f"<time>{e.published_at:%Y-%m-%d}</time>"
+        f'<article class="tile episode" id="{e.number}">'
+        f'<span class="label">{e.published_at:%Y-%m-%d} · {round(e.duration_seconds / 60)} 分钟</span>'
+        f'<h3 class="heading-02">{html.escape(e.title)}</h3>'
         f'<audio controls preload="none" src="audio/{e.number}.mp3"></audio>'
         f"{e.body_html}</article>"
         for e in episodes
@@ -179,26 +207,30 @@ def render_index(show: dict, episodes: list[Episode]) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(show['title'])}</title>
-<link rel="alternate" type="application/rss+xml" title="{html.escape(show['title'])}" href="feed.xml">
+<title>{title}</title>
+<link rel="alternate" type="application/rss+xml" title="{title}" href="feed.xml">
+{FONTS}
 <style>
-:root {{ color-scheme: light dark; }}
-body {{ font: 16px/1.7 system-ui, sans-serif; max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; }}
-header img {{ width: 8rem; border-radius: .5rem; }}
-article {{ border-top: 1px solid #8884; padding: 1.5rem 0; }}
-h2 {{ font-size: 1.15rem; margin: 0; }}
-time {{ opacity: .6; font-size: .85rem; }}
-audio {{ display: block; width: 100%; margin: .75rem 0; }}
-</style>
+{carbon_css()}{INDEX_CSS}</style>
 </head>
 <body>
-<header>
-<img src="{html.escape(show['cover'])}" alt="">
-<h1>{html.escape(show['title'])}</h1>
-<p>{html.escape(show['description'])}</p>
-<p><a href="feed.xml">RSS</a></p>
+<header class="shell-header">
+<a class="shell-name" href="./">{title}</a>
+<a class="shell-action" href="feed.xml">RSS</a>
 </header>
+<main class="content">
+<section class="hero">
+<img src="{html.escape(show['cover'])}" alt="">
+<div>
+<h1 class="heading-04">{title}</h1>
+<p class="body-02 secondary">{html.escape(show['description'])}</p>
+</div>
+</section>
+<section class="episodes">
+<h2 class="heading-03">全部节目</h2>
 {items}
+</section>
+</main>
 </body>
 </html>
 """
@@ -222,7 +254,8 @@ def build_console(show: dict, episodes: list[Episode], path: Path) -> bool:
     payload = json.dumps(config, ensure_ascii=False).replace("</", "<\\/")
     template = (ROOT / "console" / "index.html").read_text(encoding="utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(template.replace("__CONFIG__", payload), encoding="utf-8")
+    page = template.replace("__CARBON_CSS__", carbon_css()).replace("__CONFIG__", payload)
+    path.write_text(page, encoding="utf-8")
     return True
 
 

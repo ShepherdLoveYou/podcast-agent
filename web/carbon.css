@@ -1,0 +1,196 @@
+/* 设计语言：IBM Carbon Design System（v11）的颜色、字号和间距规范，字体是 IBM Plex。
+   两者都是 IBM 的开源项目（Carbon：Apache-2.0，Plex：SIL OFL）。
+   这里只按它公开的规范手写样式，没有引入它的代码；浅色用 White 主题，深色用 Gray 100 主题。 */
+
+:root {
+  color-scheme: light dark;
+  --background: #ffffff;
+  --layer: #f4f4f4;
+  --layer-accent: #e0e0e0;
+  --layer-hover: #e8e8e8;
+  --field: #f4f4f4;
+  --field-on-layer: #ffffff;
+  --border-subtle: #e0e0e0;
+  --border-strong: #8d8d8d;
+  --text-primary: #161616;
+  --text-secondary: #525252;
+  --text-helper: #6f6f6f;
+  --text-placeholder: rgba(22, 22, 22, 0.4);
+  --text-on-disabled: #8d8d8d;
+  --link: #0f62fe;
+  --link-hover: #0043ce;
+  --focus: #0f62fe;
+  --interactive: #0f62fe;
+  --button-primary: #0f62fe;
+  --button-primary-hover: #0050e6;
+  --button-primary-active: #002d9c;
+  --button-secondary: #393939;
+  --button-secondary-hover: #474747;
+  --button-tertiary: #0f62fe;
+  --button-tertiary-hover: #0050e6;
+  --button-tertiary-hover-text: #ffffff;
+  --button-disabled: #c6c6c6;
+  --support-error: #da1e28;
+  --support-info: #0043ce;
+  --notification-error: #fff1f1;
+  --notification-info: #edf5ff;
+  --tag-gray-background: #e0e0e0;
+  --tag-gray: #161616;
+  --tag-blue-background: #d0e2ff;
+  --tag-blue: #0043ce;
+  --tag-green-background: #a7f0ba;
+  --tag-green: #0e6027;
+  --tag-red-background: #ffd7d9;
+  --tag-red: #a2191f;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --ease: cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #161616;
+    --layer: #262626;
+    --layer-accent: #393939;
+    --layer-hover: #333333;
+    --field: #262626;
+    --field-on-layer: #393939;
+    --border-subtle: #393939;
+    --border-strong: #6f6f6f;
+    --text-primary: #f4f4f4;
+    --text-secondary: #c6c6c6;
+    --text-helper: #a8a8a8;
+    --text-placeholder: rgba(244, 244, 244, 0.4);
+    --text-on-disabled: rgba(255, 255, 255, 0.25);
+    --link: #78a9ff;
+    --link-hover: #a6c8ff;
+    --focus: #ffffff;
+    --interactive: #4589ff;
+    --button-secondary: #6f6f6f;
+    --button-secondary-hover: #5e5e5e;
+    --button-tertiary: #ffffff;
+    --button-tertiary-hover: #f4f4f4;
+    --button-tertiary-hover-text: #161616;
+    --button-disabled: rgba(141, 141, 141, 0.3);
+    --support-error: #fa4d56;
+    --support-info: #4589ff;
+    --notification-error: #262626;
+    --notification-info: #262626;
+    --tag-gray-background: #525252;
+    --tag-gray: #f4f4f4;
+    --tag-blue-background: #0043ce;
+    --tag-blue: #d0e2ff;
+    --tag-green-background: #0e6027;
+    --tag-green: #a7f0ba;
+    --tag-red-background: #a2191f;
+    --tag-red: #ffd7d9;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: "IBM Plex Sans", "IBM Plex Sans SC", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.42857;
+  letter-spacing: 0.16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { color: var(--link-hover); text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* 顶栏：Carbon 的 UI Shell，两种主题下都是深色 */
+.shell-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: stretch; height: 3rem; background: #161616; border-bottom: 1px solid #393939; }
+.shell-name { flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 1rem; color: #f4f4f4; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.shell-name:hover { color: #f4f4f4; text-decoration: none; }
+.shell-name .prefix { font-weight: 400; margin-right: 0.25rem; }
+.shell-action { display: flex; align-items: center; height: 3rem; padding: 0 1rem; border: 0; background: none; color: #f4f4f4; font: inherit; cursor: pointer; transition: background-color 110ms var(--ease); }
+.shell-action:hover { background: rgba(141, 141, 141, 0.16); color: #f4f4f4; text-decoration: none; }
+.shell-action:focus-visible { outline-color: #ffffff; }
+
+.content { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+.heading-04 { margin: 0; font-size: 1.75rem; line-height: 1.28572; font-weight: 400; letter-spacing: 0; }
+.heading-03 { margin: 0; font-size: 1.25rem; line-height: 1.4; font-weight: 400; letter-spacing: 0; }
+.heading-02 { margin: 0; font-size: 1rem; line-height: 1.5; font-weight: 600; letter-spacing: 0; }
+.body-02 { font-size: 1rem; line-height: 1.5; letter-spacing: 0; }
+.label { display: block; font-size: 0.75rem; line-height: 1.33333; letter-spacing: 0.32px; color: var(--text-secondary); }
+.helper { margin: 0.5rem 0 0; font-size: 0.75rem; line-height: 1.33333; letter-spacing: 0.32px; color: var(--text-helper); }
+.secondary { color: var(--text-secondary); }
+
+/* 表单：底色加一条底边，直角，聚焦时是 2px 的描边 */
+.field { display: block; margin-top: 1rem; }
+.field > .label { margin-bottom: 0.5rem; }
+.input, .textarea, .select {
+  display: block; width: 100%; height: 2.5rem; padding: 0 1rem;
+  border: 0; border-bottom: 1px solid var(--border-strong); border-radius: 0;
+  background: var(--field); color: var(--text-primary); font: inherit;
+  outline: 2px solid transparent; outline-offset: -2px; transition: outline-color 70ms var(--ease);
+}
+.textarea { height: auto; min-height: 5rem; padding: 0.6875rem 1rem; resize: vertical; }
+.input:focus, .textarea:focus, .select:focus { outline-color: var(--focus); }
+.input::placeholder, .textarea::placeholder { color: var(--text-placeholder); opacity: 1; }
+.select {
+  appearance: none; padding-right: 3rem; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%238d8d8d' d='M8 11L3 6l.7-.7L8 9.6l4.3-4.3.7.7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 1rem center;
+}
+.field-row { display: flex; flex-wrap: wrap; gap: 0 1rem; }
+.field-row > .field { flex: 1; min-width: 9rem; }
+
+/* 按钮：直角，文字靠左，右侧留白 */
+.btn {
+  display: inline-flex; align-items: center; min-height: 3rem; padding: 0 4rem 0 1rem;
+  border: 1px solid transparent; border-radius: 0; background: var(--button-primary); color: #ffffff;
+  font: inherit; text-align: left; cursor: pointer; transition: background-color 70ms var(--ease);
+}
+.btn:hover { background: var(--button-primary-hover); color: #ffffff; text-decoration: none; }
+.btn:active { background: var(--button-primary-active); }
+.btn:focus-visible { outline: none; border-color: var(--focus); box-shadow: inset 0 0 0 1px var(--focus), inset 0 0 0 2px var(--background); }
+.btn--secondary { background: var(--button-secondary); }
+.btn--secondary:hover { background: var(--button-secondary-hover); }
+.btn--tertiary { background: transparent; border-color: var(--button-tertiary); color: var(--button-tertiary); }
+.btn--tertiary:hover { background: var(--button-tertiary-hover); color: var(--button-tertiary-hover-text); }
+.btn--ghost { padding-right: 1rem; background: transparent; color: var(--link); }
+.btn--ghost:hover { background: var(--layer-hover); color: var(--link-hover); }
+.btn:disabled, .btn:disabled:hover { border-color: transparent; background: var(--button-disabled); color: var(--text-on-disabled); cursor: not-allowed; }
+.btn-set { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin-top: 1rem; }
+
+/* 标签：Carbon 里少数带圆角的元素 */
+.tag { display: inline-flex; align-items: center; height: 1.5rem; padding: 0 0.5rem; border-radius: 0.9375rem; font-size: 0.75rem; letter-spacing: 0.32px; background: var(--tag-gray-background); color: var(--tag-gray); }
+.tag--blue { background: var(--tag-blue-background); color: var(--tag-blue); }
+.tag--green { background: var(--tag-green-background); color: var(--tag-green); }
+.tag--red { background: var(--tag-red-background); color: var(--tag-red); }
+
+/* 折叠面板 */
+.accordion:not(:empty) { margin-top: 1rem; border-bottom: 1px solid var(--border-subtle); }
+.accordion details { border-top: 1px solid var(--border-subtle); }
+.accordion summary { display: flex; align-items: center; gap: 0.5rem; min-height: 2.5rem; padding: 0 1rem; cursor: pointer; list-style: none; transition: background-color 110ms var(--ease); }
+.accordion summary::-webkit-details-marker { display: none; }
+.accordion summary:hover { background: var(--layer-hover); }
+.accordion summary::after { content: ""; width: 0.4375rem; height: 0.4375rem; margin: 0 0.25rem 0.25rem auto; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); transition: transform 110ms var(--ease); }
+.accordion details[open] summary::after { margin-bottom: -0.25rem; transform: rotate(-135deg); }
+.accordion-body { margin: 0; padding: 0.5rem 1rem 1.5rem; white-space: pre-wrap; word-break: break-word; font: inherit; }
+
+/* 提示条 */
+.notification { margin-top: 1rem; padding: 0.875rem 1rem; border-left: 3px solid var(--support-info); background: var(--notification-info); word-break: break-word; }
+.notification:empty { display: none; }
+.notification--error { border-left-color: var(--support-error); background: var(--notification-error); }
+
+.tile { padding: 1rem; background: var(--layer); }
+
+.list { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+.list li { position: relative; margin-top: 0.25rem; padding-left: 1.25rem; }
+.list li::before { content: "–"; position: absolute; left: 0; }
+
+/* 对话框 */
+.modal { width: min(100% - 2rem, 32rem); padding: 0; border: 0; border-radius: 0; background: var(--layer); color: var(--text-primary); }
+.modal::backdrop { background: var(--overlay); }
+.modal-body { padding: 1rem 1rem 3rem; }
+.modal .input { background: var(--field-on-layer); }
+.modal-footer { display: flex; }
+.modal-footer .btn { flex: 1; min-height: 4rem; align-items: flex-start; padding: 0.875rem 1rem 0; }

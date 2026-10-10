@@ -5,101 +5,97 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>策划台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Sans+SC:wght@400;600&display=swap" media="print" onload="this.media='all'">
 <style>
-:root { color-scheme: light dark; --line: #8884; --soft: #8882; --accent: #2f6feb; }
-* { box-sizing: border-box; }
-body { font: 16px/1.6 system-ui, sans-serif; max-width: 44rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
-header { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-header h1 { font-size: 1.2rem; margin: 0; flex: 1; }
-section { border-top: 1px solid var(--line); margin-top: 1.25rem; padding-top: 1rem; }
-h2 { font-size: 1rem; margin: 0 0 .5rem; }
-.hint { opacity: .65; font-size: .85rem; margin: .25rem 0 .5rem; }
-textarea, input, select { font: inherit; width: 100%; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: .5rem; background: transparent; color: inherit; }
-textarea { resize: vertical; }
-button { font: inherit; padding: .45rem .9rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--soft); color: inherit; cursor: pointer; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button:disabled { opacity: .5; cursor: default; }
-.row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
-.row > label { flex: 1; min-width: 9rem; font-size: .85rem; }
-.source { border: 1px solid var(--line); border-radius: .5rem; padding: .5rem .7rem; margin-top: .5rem; font-size: .9rem; }
-.source summary { cursor: pointer; }
-.source pre, .bubble { white-space: pre-wrap; word-break: break-word; font: inherit; margin: .5rem 0 0; }
-#messages { display: flex; flex-direction: column; gap: .6rem; margin-bottom: .6rem; }
-.bubble { margin: 0; padding: .55rem .8rem; border-radius: .8rem; max-width: 92%; }
-.bubble.user { align-self: flex-end; background: var(--accent); color: #fff; }
-.bubble.model { align-self: flex-start; background: var(--soft); }
-.error { color: #d1242f; font-size: .9rem; margin-top: .5rem; }
-#status a { word-break: break-all; }
-dialog { border: 1px solid var(--line); border-radius: .8rem; max-width: 34rem; width: calc(100% - 2rem); }
-ul { padding-left: 1.2rem; margin: .3rem 0; }
+__CARBON_CSS__
+.step { padding: 2rem 0; border-top: 1px solid var(--border-subtle); }
+.step:first-child { padding-top: 0; border-top: 0; }
+.step > .helper { margin-top: 0.25rem; }
+.messages { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+.message { margin: 0; max-width: 92%; padding: 0.75rem 1rem; white-space: pre-wrap; word-break: break-word; font-size: 1rem; line-height: 1.5; letter-spacing: 0; }
+.message--user { align-self: flex-end; background: var(--layer-accent); }
+.message--model { align-self: flex-start; background: var(--layer); border-left: 3px solid var(--interactive); }
 </style>
 </head>
 <body>
-<header>
-  <h1 id="show-title">策划台</h1>
-  <button id="new-episode">新的一期</button>
-  <button id="open-settings">设置</button>
+<header class="shell-header">
+  <span class="shell-name"><span class="prefix" id="show-title"></span>策划台</span>
+  <button class="shell-action" id="new-episode">新的一期</button>
+  <button class="shell-action" id="open-settings">设置</button>
 </header>
 
-<section>
-  <h2>1. 来源</h2>
-  <p class="hint">每行一个链接。YouTube 视频可以先让它读一遍，之后的讨论会以内容纪要为依据；读一个一小时的视频大约要一分钟。</p>
-  <textarea id="sources" rows="3" placeholder="https://www.youtube.com/watch?v=..."></textarea>
-  <div class="row"><button id="read-sources">读来源</button></div>
-  <div id="source-list"></div>
-</section>
+<main class="content">
+  <section class="step">
+    <span class="label">步骤 1</span>
+    <h2 class="heading-03">来源</h2>
+    <p class="helper">每行一个链接。YouTube 视频可以先让它读一遍，之后的讨论会以内容纪要为依据；读一个一小时的视频大约要一分钟。</p>
+    <label class="field"><span class="label">来源链接</span>
+      <textarea class="textarea" id="sources" rows="3" placeholder="https://www.youtube.com/watch?v=..."></textarea></label>
+    <div class="btn-set"><button class="btn btn--tertiary" id="read-sources">读来源</button></div>
+    <div class="accordion" id="source-list"></div>
+  </section>
 
-<section>
-  <h2>2. 聊这一期</h2>
-  <p class="hint">讲什么、从哪个角度讲、用哪种形式。固定的节目风格每期会自动加上，这里只需要聊这一期特有的东西。</p>
-  <div id="messages"></div>
-  <textarea id="input" rows="2" placeholder="比如：这期我想讲……"></textarea>
-  <div class="row">
-    <button id="send" class="primary">发送</button>
-    <button id="make-plan">整理成本期策划</button>
+  <section class="step">
+    <span class="label">步骤 2</span>
+    <h2 class="heading-03">聊这一期</h2>
+    <p class="helper">讲什么、从哪个角度讲、用哪种形式。固定的节目风格每期会自动加上，这里只需要聊这一期特有的东西。</p>
+    <div class="messages" id="messages"></div>
+    <label class="field"><span class="label">你的想法</span>
+      <textarea class="textarea" id="input" rows="2" placeholder="比如：这期我想讲……"></textarea></label>
+    <div class="btn-set">
+      <button class="btn" id="send">发送</button>
+      <button class="btn btn--tertiary" id="make-plan">整理成本期策划</button>
+    </div>
+    <div class="notification notification--error" id="chat-error"></div>
+  </section>
+
+  <section class="step">
+    <span class="label">步骤 3</span>
+    <h2 class="heading-03">本期策划</h2>
+    <p class="helper">可以直接改。着重点会接在固定的节目风格后面，一起交给 NotebookLM。</p>
+    <label class="field"><span class="label">这一期只回答的问题</span><input class="input" id="plan-question"></label>
+    <div class="field-row">
+      <label class="field"><span class="label">格式</span><select class="select" id="plan-format">
+        <option value="deep-dive">深入探究</option>
+        <option value="debate">辩论</option>
+        <option value="brief">摘要</option>
+      </select></label>
+      <label class="field"><span class="label">时长</span><select class="select" id="plan-length">
+        <option value="default">默认</option>
+        <option value="short">短</option>
+      </select></label>
+    </div>
+    <label class="field"><span class="label">着重点</span><textarea class="textarea" id="plan-focus" rows="6"></textarea></label>
+    <div id="plan-cautions"></div>
+  </section>
+
+  <section class="step">
+    <span class="label">步骤 4</span>
+    <h2 class="heading-03">生成</h2>
+    <p class="helper">生成约十几分钟，会消耗一次音频配额。结束后会开出一个 PR，在 GitHub 里试听并合并才算发布。</p>
+    <div class="btn-set">
+      <button class="btn" id="trigger">触发生成</button>
+      <button class="btn btn--ghost" id="copy-sources">复制来源</button>
+      <button class="btn btn--ghost" id="copy-focus">复制着重点</button>
+      <a class="btn btn--ghost" id="workflow-link" target="_blank" rel="noopener">打开 GitHub 手动触发</a>
+    </div>
+    <div class="notification" id="status"></div>
+  </section>
+</main>
+
+<dialog class="modal" id="settings">
+  <div class="modal-body">
+    <h2 class="heading-03">设置</h2>
+    <p class="helper">GitHub 令牌只保存在这台设备的浏览器里，用来触发生成和查看进度。建议新建一个只对这个仓库生效的细粒度令牌，权限只开 Actions 的读写。不填也可以，用"打开 GitHub 手动触发"。</p>
+    <label class="field"><span class="label">GitHub 令牌</span>
+      <input class="input" id="github-token" type="password" autocomplete="off"></label>
   </div>
-  <div id="chat-error" class="error"></div>
-</section>
-
-<section>
-  <h2>3. 本期策划</h2>
-  <p class="hint">可以直接改。着重点会接在固定的节目风格后面，一起交给 NotebookLM。</p>
-  <label>这一期只回答的问题<input id="plan-question"></label>
-  <div class="row">
-    <label>格式<select id="plan-format">
-      <option value="deep-dive">深入探究</option>
-      <option value="debate">辩论</option>
-      <option value="brief">摘要</option>
-    </select></label>
-    <label>时长<select id="plan-length">
-      <option value="default">默认</option>
-      <option value="short">短</option>
-    </select></label>
-  </div>
-  <label>着重点<textarea id="plan-focus" rows="5"></textarea></label>
-  <div id="plan-cautions"></div>
-</section>
-
-<section>
-  <h2>4. 生成</h2>
-  <p class="hint">生成约十几分钟，会消耗一次音频配额。结束后会开出一个 PR，在 GitHub 里试听并合并才算发布。</p>
-  <div class="row">
-    <button id="trigger" class="primary">触发生成</button>
-    <button id="copy-sources">复制来源</button>
-    <button id="copy-focus">复制着重点</button>
-    <a id="workflow-link" target="_blank" rel="noopener"><button type="button">打开 GitHub 手动触发</button></a>
-  </div>
-  <div id="status" class="hint"></div>
-</section>
-
-<dialog id="settings">
-  <h2>设置</h2>
-  <p class="hint">GitHub 令牌只保存在这台设备的浏览器里，用来触发生成和查看进度。建议新建一个只对这个仓库生效的细粒度令牌，权限只开 Actions 的读写。不填也可以，用"打开 GitHub 手动触发"。</p>
-  <label>GitHub 令牌<input id="github-token" type="password" autocomplete="off"></label>
-  <div class="row">
-    <button id="save-settings" class="primary">保存</button>
-    <button id="clear-token">清除令牌</button>
-    <button id="close-settings">关闭</button>
+  <div class="modal-footer">
+    <button class="btn btn--ghost" id="clear-token">清除令牌</button>
+    <button class="btn btn--secondary" id="close-settings">关闭</button>
+    <button class="btn" id="save-settings">保存</button>
   </div>
 </dialog>
 
@@ -119,6 +115,11 @@ const DIGEST_PROMPT = `请完整听完这个视频，用简体中文写一份内
 3) 适合做成节目的两三个切入角度；
 4) 需要谨慎处理的内容（真实的个人、未经证实的说法、具体的投资、医疗或法律建议）。
 不超过 1000 字。`;
+// 来源的读取状态 → 显示的文字和标签颜色
+const SOURCE_STATES = {
+  todo: ["待读", ""], reading: ["读取中", "tag--blue"], done: ["已读", "tag--green"],
+  skipped: ["读不了", ""], failed: ["没读成", "tag--red"],
+};
 
 let state = load();
 
@@ -183,13 +184,16 @@ function isYouTube(url) { return /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.b
 async function readSources() {
   const urls = $("sources").value.split(/\s+/).filter((u) => /^https?:\/\//.test(u));
   state.sourceText = $("sources").value;
-  state.sources = urls.map((url) => state.sources.find((s) => s.url === url) || { url, status: "待读", digest: "" });
+  state.sources = urls.map((url) => state.sources.find((s) => s.url === url) || { url, state: "todo", note: "", digest: "" });
   save(); renderSources();
   $("read-sources").disabled = true;
   for (const source of state.sources) {
     if (source.digest) continue;
-    if (!isYouTube(source.url)) { source.status = "不是 YouTube 链接，读不了内容；生成时仍会使用"; save(); renderSources(); continue; }
-    source.status = "读取中……"; renderSources();
+    if (!isYouTube(source.url)) {
+      source.state = "skipped"; source.note = "不是 YouTube 链接，读不了内容；生成时仍会使用。";
+      save(); renderSources(); continue;
+    }
+    source.state = "reading"; renderSources();
     try {
       source.digest = await gemini({
         contents: [{ role: "user", parts: [
@@ -197,9 +201,9 @@ async function readSources() {
           { text: DIGEST_PROMPT }] }],
         generationConfig: { mediaResolution: "MEDIA_RESOLUTION_LOW", maxOutputTokens: 6000, temperature: 0.3 },
       });
-      source.status = "已读";
+      source.state = "done"; source.note = "";
     } catch (error) {
-      source.status = `没读成：${error.message}`;
+      source.state = "failed"; source.note = error.message;
     }
     save(); renderSources();
   }
@@ -335,6 +339,7 @@ function setStatus(text, href, label) {
   }
 }
 
+// 回复里的 **加粗** 显示成加粗，其余一律按纯文本处理
 function richText(text) {
   const fragment = document.createDocumentFragment();
   text.split(/\*\*(.+?)\*\*/g).forEach((piece, index) => {
@@ -351,22 +356,24 @@ function richText(text) {
 }
 
 function renderSources() {
-  const list = $("source-list");
-  list.replaceChildren(...state.sources.map((source, index) => {
-    const box = document.createElement("details");
-    box.className = "source";
+  $("source-list").replaceChildren(...state.sources.map((source, index) => {
+    const [text, tone] = SOURCE_STATES[source.state] || SOURCE_STATES.todo;
+    const item = document.createElement("details");
     const summary = document.createElement("summary");
-    summary.textContent = `来源 ${index + 1}：${source.status}`;
+    const tag = document.createElement("span");
+    tag.className = `tag ${tone}`; tag.textContent = text;
+    summary.append(`来源 ${index + 1}`, tag);
     const body = document.createElement("pre");
-    body.textContent = source.digest || source.url;
-    box.append(summary, body);
-    return box;
+    body.className = "accordion-body";
+    body.textContent = source.digest || [source.note, source.url].filter(Boolean).join("\n");
+    item.append(summary, body);
+    return item;
   }));
 }
 function renderMessages() {
   $("messages").replaceChildren(...state.messages.map((message) => {
     const bubble = document.createElement("p");
-    bubble.className = `bubble ${message.role}`;
+    bubble.className = `message message--${message.role}`;
     if (message.role === "model") bubble.appendChild(richText(message.text));
     else bubble.textContent = message.text;
     return bubble;
@@ -383,15 +390,17 @@ function renderPlan() {
   const box = $("plan-cautions");
   box.replaceChildren();
   if (cautions.length) {
-    const title = document.createElement("p");
-    title.className = "hint"; title.textContent = "留意：";
+    box.className = "field";
+    const title = document.createElement("span");
+    title.className = "label"; title.textContent = "留意";
     const list = document.createElement("ul");
+    list.className = "list";
     list.append(...cautions.map((text) => { const item = document.createElement("li"); item.textContent = text; return item; }));
     box.append(title, list);
   }
 }
 
-$("show-title").textContent = `${CONFIG.showTitle} · 策划台`;
+$("show-title").textContent = CONFIG.showTitle;
 $("workflow-link").href = `https://github.com/${CONFIG.repo}/actions/workflows/${CONFIG.workflow}`;
 $("sources").value = state.sourceText;
 $("read-sources").onclick = readSources;
