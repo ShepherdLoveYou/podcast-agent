@@ -58,7 +58,7 @@ jobs:
           npx --yes staticrypt@3 _build/console/index.html -d _site/console -c false --salt "$salt" \
             -p "$SITE_PASSWORD" --short --remember 30 \
             --template-title "策划台" --template-instructions "输入口令打开策划台" --template-button "打开" \
-            --template-placeholder "口令" --template-remember "在这台设备上记住 30 天" --template-error "口令不对" \\
+            --template-placeholder "口令" --template-remember "在这台设备上记住 30 天" --template-error "口令不对" \
             --template-color-primary "#0f62fe" --template-color-secondary "#161616" >/dev/null
           # 发布前自检：用口令解密刚加密的页面，必须和生成的页面一模一样
           npx --yes staticrypt@3 _site/console/index.html --decrypt -c false --salt "$salt" -p "$SITE_PASSWORD" -d _check >/dev/null
