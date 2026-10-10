@@ -20,9 +20,11 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
 SOURCE_TIMEOUT_S = 300
 GENERATE_TIMEOUT_S = 2400
 AUDIO_SOURCE_TIMEOUT_S = 600
@@ -76,6 +78,13 @@ def nblm(*args: str) -> dict:
         return json.loads(proc.stdout)
     except json.JSONDecodeError:
         raise NblmError(f"notebooklm {label} 的输出不是 JSON：{proc.stdout[:500]}") from None
+
+
+def compose_focus(episode_focus: str) -> str:
+    """节目固定的听众说明（show.toml 的 audience_note）加上这一期自己的着重点。"""
+    show = tomllib.loads((ROOT / "show.toml").read_text(encoding="utf-8"))
+    parts = [show.get("audience_note", "").strip(), episode_focus.strip()]
+    return "\n".join(part for part in parts if part)
 
 
 def ensure_audio_quota() -> None:
@@ -174,7 +183,7 @@ def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
 def main() -> None:
     inputs = read_inputs()
     sources = inputs["sources"].split()
-    focus = inputs["focus"]
+    focus = compose_focus(inputs["focus"])
     fmt = inputs["format"] or "deep-dive"
     length = inputs["length"] or "default"
     language = os.environ.get("LANGUAGE") or "zh_Hans"

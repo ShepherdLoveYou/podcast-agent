@@ -9,6 +9,9 @@ subcategory = "Careers"
 explicit = false
 cover = "cover.jpg"
 
+# 每期生成时都会放在"着重说明"的最前面，告诉 NotebookLM 节目面向谁
+audience_note = "这档节目面向大众听众：默认听众没有专业背景，少用术语，必须用的术语用一句话解释，多举生活里的例子。"
+
 # Pages 站点地址，feed 和音频的链接都从它拼出来
 site_url = "https://shepherdloveyou.github.io/podcast-agent"
 
