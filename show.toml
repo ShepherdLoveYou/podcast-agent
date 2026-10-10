@@ -28,5 +28,8 @@ house_style = """
 # Pages 站点地址，feed 和音频的链接都从它拼出来
 site_url = "https://shepherdloveyou.github.io/podcast-agent"
 
+# 跑流水线的 GitHub 仓库，策划台用它触发生成
+repo = "ShepherdLoveYou/podcast-agent"
+
 # 可选：写进 feed 的联系邮箱。有些平台认领节目时要用它收验证码，会公开可见
 # owner_email = ""

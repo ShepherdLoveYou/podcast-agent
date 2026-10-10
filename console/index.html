@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>策划台</title>
+<style>
+:root { color-scheme: light dark; --line: #8884; --soft: #8882; --accent: #2f6feb; }
+* { box-sizing: border-box; }
+body { font: 16px/1.6 system-ui, sans-serif; max-width: 44rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
+header { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+header h1 { font-size: 1.2rem; margin: 0; flex: 1; }
+section { border-top: 1px solid var(--line); margin-top: 1.25rem; padding-top: 1rem; }
+h2 { font-size: 1rem; margin: 0 0 .5rem; }
+.hint { opacity: .65; font-size: .85rem; margin: .25rem 0 .5rem; }
+textarea, input, select { font: inherit; width: 100%; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: .5rem; background: transparent; color: inherit; }
+textarea { resize: vertical; }
+button { font: inherit; padding: .45rem .9rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--soft); color: inherit; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+.row > label { flex: 1; min-width: 9rem; font-size: .85rem; }
+.source { border: 1px solid var(--line); border-radius: .5rem; padding: .5rem .7rem; margin-top: .5rem; font-size: .9rem; }
+.source summary { cursor: pointer; }
+.source pre, .bubble { white-space: pre-wrap; word-break: break-word; font: inherit; margin: .5rem 0 0; }
+#messages { display: flex; flex-direction: column; gap: .6rem; margin-bottom: .6rem; }
+.bubble { margin: 0; padding: .55rem .8rem; border-radius: .8rem; max-width: 92%; }
+.bubble.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.bubble.model { align-self: flex-start; background: var(--soft); }
+.error { color: #d1242f; font-size: .9rem; margin-top: .5rem; }
+#status a { word-break: break-all; }
+dialog { border: 1px solid var(--line); border-radius: .8rem; max-width: 34rem; width: calc(100% - 2rem); }
+ul { padding-left: 1.2rem; margin: .3rem 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="show-title">策划台</h1>
+  <button id="new-episode">新的一期</button>
+  <button id="open-settings">设置</button>
+</header>
+
+<section>
+  <h2>1. 来源</h2>
+  <p class="hint">每行一个链接。YouTube 视频可以先让它读一遍，之后的讨论会以内容纪要为依据；读一个一小时的视频大约要一分钟。</p>
+  <textarea id="sources" rows="3" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+  <div class="row"><button id="read-sources">读来源</button></div>
+  <div id="source-list"></div>
+</section>
+
+<section>
+  <h2>2. 聊这一期</h2>
+  <p class="hint">讲什么、从哪个角度讲、用哪种形式。固定的节目风格每期会自动加上，这里只需要聊这一期特有的东西。</p>
+  <div id="messages"></div>
+  <textarea id="input" rows="2" placeholder="比如：这期我想讲……"></textarea>
+  <div class="row">
+    <button id="send" class="primary">发送</button>
+    <button id="make-plan">整理成本期策划</button>
+  </div>
+  <div id="chat-error" class="error"></div>
+</section>
+
+<section>
+  <h2>3. 本期策划</h2>
+  <p class="hint">可以直接改。着重点会接在固定的节目风格后面，一起交给 NotebookLM。</p>
+  <label>这一期只回答的问题<input id="plan-question"></label>
+  <div class="row">
+    <label>格式<select id="plan-format">
+      <option value="deep-dive">深入探究</option>
+      <option value="debate">辩论</option>
+      <option value="brief">摘要</option>
+    </select></label>
+    <label>时长<select id="plan-length">
+      <option value="default">默认</option>
+      <option value="short">短</option>
+    </select></label>
+  </div>
+  <label>着重点<textarea id="plan-focus" rows="5"></textarea></label>
+  <div id="plan-cautions"></div>
+</section>
+
+<section>
+  <h2>4. 生成</h2>
+  <p class="hint">生成约十几分钟，会消耗一次音频配额。结束后会开出一个 PR，在 GitHub 里试听并合并才算发布。</p>
+  <div class="row">
+    <button id="trigger" class="primary">触发生成</button>
+    <button id="copy-sources">复制来源</button>
+    <button id="copy-focus">复制着重点</button>
+    <a id="workflow-link" target="_blank" rel="noopener"><button type="button">打开 GitHub 手动触发</button></a>
+  </div>
+  <div id="status" class="hint"></div>
+</section>
+
+<dialog id="settings">
+  <h2>设置</h2>
+  <p class="hint">GitHub 令牌只保存在这台设备的浏览器里，用来触发生成和查看进度。建议新建一个只对这个仓库生效的细粒度令牌，权限只开 Actions 的读写。不填也可以，用"打开 GitHub 手动触发"。</p>
+  <label>GitHub 令牌<input id="github-token" type="password" autocomplete="off"></label>
+  <div class="row">
+    <button id="save-settings" class="primary">保存</button>
+    <button id="clear-token">清除令牌</button>
+    <button id="close-settings">关闭</button>
+  </div>
+</dialog>
+
+<script id="config" type="application/json">__CONFIG__</script>
+<script>
+"use strict";
+const CONFIG = JSON.parse(document.getElementById("config").textContent);
+const STATE_KEY = "podcast-console-v1";
+const TOKEN_KEY = "podcast-console-github-token";
+const $ = (id) => document.getElementById(id);
+
+// 读长视频时每秒只取很少的画面：讲座类内容靠的是声音，这样一小时的视频才不会超出免费额度
+const VIDEO_FPS = 0.05;
+const DIGEST_PROMPT = `请完整听完这个视频，用简体中文写一份内容纪要，供策划一期面向大众的播客使用：
+1) 一句话主题；
+2) 按顺序列出主要论点，每条带上关键的例子、数据或比喻；
+3) 适合做成节目的两三个切入角度；
+4) 需要谨慎处理的内容（真实的个人、未经证实的说法、具体的投资、医疗或法律建议）。
+不超过 1000 字。`;
+
+let state = load();
+
+function load() {
+  try {
+    return Object.assign({ sourceText: "", sources: [], messages: [], plan: null, run: null },
+      JSON.parse(localStorage.getItem(STATE_KEY) || "{}"));
+  } catch { return { sourceText: "", sources: [], messages: [], plan: null, run: null }; }
+}
+function save() { localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+function token() { return localStorage.getItem(TOKEN_KEY) || ""; }
+
+function systemPrompt() {
+  const digests = state.sources.filter((s) => s.digest)
+    .map((s, i) => `【来源 ${i + 1} 的内容纪要】\n${s.digest}`).join("\n\n");
+  const past = CONFIG.episodes.map((e) => `- ${e.title}`).join("\n") || "（还没有）";
+  return `你是播客《${CONFIG.showTitle}》的策划搭档。你的工作是在生成之前，和主理人把这一期聊清楚：讲什么、从哪个角度讲、用哪种形式。
+
+节目设定：
+- 听众是大众，没有专业背景。
+- 成品由 NotebookLM 的音频概览生成，形式只能在固定选项里选。格式：深入探究（deep-dive，两位主持人把一个话题讲透，默认）、辩论（debate，适合有明显对立观点的话题）、摘要（brief，短，快速讲清一件事）。时长：默认（default）或短（short）。
+- 下面这段固定的节目风格每期都会自动加上，你不需要重复它，只需要帮主理人定这一期特有的着重点。
+${CONFIG.houseStyle}
+
+往期节目（避免重复，可以做成系列）：
+${past}
+
+做法：
+- 只根据来源的内容纪要提建议，不要编造来源里没有的事实。没有纪要时就只聊方向，并说明你还没有读到来源。
+- 循序渐进：先确认这一期只回答哪一个问题，再给两三个切入角度让主理人选，然后定格式和时长，最后写着重点。
+- 每次回复尽量短，一次只推进一步，最多问一个问题。
+- 主动指出风险：涉及真实的个人、未经证实的说法、具体的投资、医疗或法律建议时，说明建议怎么处理。
+- 着重点里不要出现来源的标题、作者、频道或链接。
+- 用简体中文。${digests ? "\n\n" + digests : ""}`;
+}
+
+async function gemini(body) {
+  let lastError = new Error("没有可用的模型");
+  for (const model of CONFIG.models) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": CONFIG.geminiKey },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      const text = parts.map((part) => part.text || "").join("").trim();
+      if (text) return text;
+      lastError = new Error("模型没有返回内容");
+      continue;
+    }
+    lastError = new Error((data.error && data.error.message) || `HTTP ${response.status}`);
+    // 400 是请求本身的问题（比如视频太长或不公开），换模型也没用
+    if (response.status === 400) break;
+  }
+  throw lastError;
+}
+
+function isYouTube(url) { return /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\//.test(url); }
+
+async function readSources() {
+  const urls = $("sources").value.split(/\s+/).filter((u) => /^https?:\/\//.test(u));
+  state.sourceText = $("sources").value;
+  state.sources = urls.map((url) => state.sources.find((s) => s.url === url) || { url, status: "待读", digest: "" });
+  save(); renderSources();
+  $("read-sources").disabled = true;
+  for (const source of state.sources) {
+    if (source.digest) continue;
+    if (!isYouTube(source.url)) { source.status = "不是 YouTube 链接，读不了内容；生成时仍会使用"; save(); renderSources(); continue; }
+    source.status = "读取中……"; renderSources();
+    try {
+      source.digest = await gemini({
+        contents: [{ role: "user", parts: [
+          { fileData: { fileUri: source.url }, videoMetadata: { fps: VIDEO_FPS } },
+          { text: DIGEST_PROMPT }] }],
+        generationConfig: { mediaResolution: "MEDIA_RESOLUTION_LOW", maxOutputTokens: 6000, temperature: 0.3 },
+      });
+      source.status = "已读";
+    } catch (error) {
+      source.status = `没读成：${error.message}`;
+    }
+    save(); renderSources();
+  }
+  $("read-sources").disabled = false;
+}
+
+function chatContents(extra) {
+  const turns = state.messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
+  return extra ? turns.concat([{ role: "user", parts: [{ text: extra }] }]) : turns;
+}
+
+async function send() {
+  const text = $("input").value.trim();
+  if (!text) return;
+  $("input").value = "";
+  $("chat-error").textContent = "";
+  state.messages.push({ role: "user", text });
+  save(); renderMessages();
+  $("send").disabled = true;
+  try {
+    const reply = await gemini({
+      systemInstruction: { parts: [{ text: systemPrompt() }] },
+      contents: chatContents(),
+      generationConfig: { temperature: 0.7, maxOutputTokens: 4000 },
+    });
+    state.messages.push({ role: "model", text: reply });
+  } catch (error) {
+    // 这句没发出去：从记录里拿掉并放回输入框，对话保持一问一答
+    state.messages.pop();
+    $("input").value = text;
+    $("chat-error").textContent = `没有收到回复：${error.message}`;
+  }
+  save(); renderMessages();
+  $("send").disabled = false;
+}
+
+async function makePlan() {
+  $("chat-error").textContent = "";
+  $("make-plan").disabled = true;
+  try {
+    const raw = await gemini({
+      systemInstruction: { parts: [{ text: systemPrompt() }] },
+      contents: chatContents("请把我们聊定的内容整理成本期策划。还没聊到的部分，按你的判断给出最合适的建议。"),
+      generationConfig: {
+        temperature: 0.3, maxOutputTokens: 4000, responseMimeType: "application/json",
+        responseSchema: { type: "OBJECT", required: ["core_question", "format", "length", "focus", "cautions"], properties: {
+          core_question: { type: "STRING", description: "这一期只回答的一个问题" },
+          format: { type: "STRING", enum: ["deep-dive", "debate", "brief"] },
+          length: { type: "STRING", enum: ["default", "short"] },
+          focus: { type: "STRING", description: "这一期特有的着重点，一段话，交给 NotebookLM；不含来源的标题、作者或链接" },
+          cautions: { type: "ARRAY", items: { type: "STRING" }, description: "需要主理人留意的风险，没有就给空数组" },
+        } },
+      },
+    });
+    state.plan = JSON.parse(raw);
+    save(); renderPlan();
+  } catch (error) {
+    $("chat-error").textContent = `没能整理出策划：${error.message}`;
+  }
+  $("make-plan").disabled = false;
+}
+
+function readPlanFields() {
+  state.plan = Object.assign(state.plan || { cautions: [] }, {
+    core_question: $("plan-question").value, format: $("plan-format").value,
+    length: $("plan-length").value, focus: $("plan-focus").value,
+  });
+  save();
+}
+function sourceInput() { return $("sources").value.split(/\s+/).filter((u) => /^https?:\/\//.test(u)).join(" "); }
+
+async function github(path, options) {
+  const response = await fetch(`https://api.github.com/repos/${CONFIG.repo}${path}`, Object.assign({
+    headers: { Authorization: `Bearer ${token()}`, Accept: "application/vnd.github+json" } }, options));
+  if (response.status === 401 || response.status === 403) throw new Error("GitHub 不接受这个令牌，请在设置里检查它的权限和有效期");
+  if (!response.ok) throw new Error(`GitHub 返回 ${response.status}`);
+  return response.status === 204 ? null : response.json();
+}
+
+async function trigger() {
+  readPlanFields();
+  if (!sourceInput()) { setStatus("还没有来源链接。"); return; }
+  if (!token()) { setStatus("还没有保存 GitHub 令牌。请在设置里填，或者用右边的按钮手动触发。"); return; }
+  if (!confirm("确定触发生成吗？这会消耗一次音频配额。")) return;
+  $("trigger").disabled = true;
+  try {
+    const before = await github(`/actions/workflows/${CONFIG.workflow}/runs?per_page=1`);
+    const lastId = before.workflow_runs[0] ? before.workflow_runs[0].id : 0;
+    await github(`/actions/workflows/${CONFIG.workflow}/dispatches`, { method: "POST", body: JSON.stringify({
+      ref: "main", inputs: { sources: sourceInput(), focus: state.plan.focus || "", format: state.plan.format, length: state.plan.length } }) });
+    state.run = { after: lastId, id: null, url: "", done: false };
+    save(); setStatus("已触发，正在等 GitHub 开始运行……");
+    pollRun();
+  } catch (error) {
+    setStatus(`触发失败：${error.message}`);
+  }
+  $("trigger").disabled = false;
+}
+
+async function pollRun() {
+  if (!state.run || state.run.done || !token()) return;
+  try {
+    const data = await github(`/actions/workflows/${CONFIG.workflow}/runs?per_page=1`);
+    const run = data.workflow_runs[0];
+    if (run && run.id !== state.run.after) {
+      state.run.id = run.id; state.run.url = run.html_url;
+      if (run.status === "completed") {
+        state.run.done = true;
+        if (run.conclusion === "success") {
+          const pulls = await github("/pulls?state=open&sort=created&direction=desc&per_page=1");
+          setStatus("生成完成。", pulls[0] ? pulls[0].html_url : run.html_url, pulls[0] ? "打开 PR 试听并合并" : "查看运行");
+        } else {
+          setStatus(`运行没有成功（${run.conclusion}）。`, run.html_url, "查看运行");
+        }
+        save(); return;
+      }
+      setStatus("生成中，通常要十几分钟。这个页面可以先关掉。", run.html_url, "查看进度");
+    }
+  } catch (error) {
+    setStatus(`查不到进度：${error.message}`);
+  }
+  save();
+  setTimeout(pollRun, 20000);
+}
+
+function setStatus(text, href, label) {
+  const box = $("status");
+  box.textContent = text + (href ? " " : "");
+  if (href) {
+    const link = document.createElement("a");
+    link.href = href; link.target = "_blank"; link.rel = "noopener"; link.textContent = label;
+    box.appendChild(link);
+  }
+}
+
+function richText(text) {
+  const fragment = document.createDocumentFragment();
+  text.split(/\*\*(.+?)\*\*/g).forEach((piece, index) => {
+    if (!piece) return;
+    if (index % 2) {
+      const strong = document.createElement("strong");
+      strong.textContent = piece;
+      fragment.appendChild(strong);
+    } else {
+      fragment.appendChild(document.createTextNode(piece));
+    }
+  });
+  return fragment;
+}
+
+function renderSources() {
+  const list = $("source-list");
+  list.replaceChildren(...state.sources.map((source, index) => {
+    const box = document.createElement("details");
+    box.className = "source";
+    const summary = document.createElement("summary");
+    summary.textContent = `来源 ${index + 1}：${source.status}`;
+    const body = document.createElement("pre");
+    body.textContent = source.digest || source.url;
+    box.append(summary, body);
+    return box;
+  }));
+}
+function renderMessages() {
+  $("messages").replaceChildren(...state.messages.map((message) => {
+    const bubble = document.createElement("p");
+    bubble.className = `bubble ${message.role}`;
+    if (message.role === "model") bubble.appendChild(richText(message.text));
+    else bubble.textContent = message.text;
+    return bubble;
+  }));
+  if (state.messages.length) $("messages").lastChild.scrollIntoView({ block: "nearest" });
+}
+function renderPlan() {
+  const plan = state.plan || {};
+  $("plan-question").value = plan.core_question || "";
+  $("plan-format").value = plan.format || "deep-dive";
+  $("plan-length").value = plan.length || "default";
+  $("plan-focus").value = plan.focus || "";
+  const cautions = plan.cautions || [];
+  const box = $("plan-cautions");
+  box.replaceChildren();
+  if (cautions.length) {
+    const title = document.createElement("p");
+    title.className = "hint"; title.textContent = "留意：";
+    const list = document.createElement("ul");
+    list.append(...cautions.map((text) => { const item = document.createElement("li"); item.textContent = text; return item; }));
+    box.append(title, list);
+  }
+}
+
+$("show-title").textContent = `${CONFIG.showTitle} · 策划台`;
+$("workflow-link").href = `https://github.com/${CONFIG.repo}/actions/workflows/${CONFIG.workflow}`;
+$("sources").value = state.sourceText;
+$("read-sources").onclick = readSources;
+$("send").onclick = send;
+$("input").onkeydown = (event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send(); };
+$("make-plan").onclick = makePlan;
+$("trigger").onclick = trigger;
+$("copy-sources").onclick = () => navigator.clipboard.writeText(sourceInput()).then(() => setStatus("来源已复制。"));
+$("copy-focus").onclick = () => { readPlanFields(); navigator.clipboard.writeText(state.plan.focus || "").then(() => setStatus("着重点已复制。")); };
+["plan-question", "plan-format", "plan-length", "plan-focus"].forEach((id) => { $(id).onchange = readPlanFields; });
+$("new-episode").onclick = () => {
+  if (!confirm("清空当前的来源、对话和策划，开始新的一期？")) return;
+  state = { sourceText: "", sources: [], messages: [], plan: null, run: null };
+  save(); $("sources").value = ""; renderSources(); renderMessages(); renderPlan(); setStatus("");
+};
+$("open-settings").onclick = () => { $("github-token").value = token(); $("settings").showModal(); };
+$("close-settings").onclick = () => $("settings").close();
+$("save-settings").onclick = () => {
+  const value = $("github-token").value.trim();
+  if (value) localStorage.setItem(TOKEN_KEY, value); else localStorage.removeItem(TOKEN_KEY);
+  $("settings").close();
+};
+$("clear-token").onclick = () => { localStorage.removeItem(TOKEN_KEY); $("github-token").value = ""; };
+
+renderSources(); renderMessages(); renderPlan(); pollRun();
+</script>
+</body>
+</html>

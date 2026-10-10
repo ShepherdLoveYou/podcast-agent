@@ -10,3 +10,5 @@ out/
 _site/
 .env
 .playwright-mcp/
+_build/
+_check/

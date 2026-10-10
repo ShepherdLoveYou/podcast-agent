@@ -1,12 +1,17 @@
 """把 show.toml 和 episodes/ 生成 Pages 站点：feed.xml、音频、封面和一个简单首页。
 
-用法：python scripts/build_site.py [输出目录，默认 _site]
+用法：python scripts/build_site.py [输出目录，默认 _site] [--console 策划台输出路径]
+
+策划台（console/index.html）里会写入 GEMINI_API_KEY，所以它不放进输出目录，
+而是写到 --console 指定的路径，由发布工作流加密之后再放进站点。
 """
 
 from __future__ import annotations
 
+import argparse
 import html
 import json
+import os
 import re
 import shutil
 import sys
@@ -23,6 +28,8 @@ NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "content": "http://purl.org/rss/1.0/modules/content/",
 }
+# 策划台依次尝试的 Gemini 模型，前一个不可用时换下一个
+CONSOLE_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash-latest"]
 INLINE_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
 INLINE_BOLD = re.compile(r"\*\*(.+?)\*\*")
 
@@ -197,8 +204,34 @@ audio {{ display: block; width: 100%; margin: .75rem 0; }}
 """
 
 
+def build_console(show: dict, episodes: list[Episode], path: Path) -> bool:
+    """生成未加密的策划台页面。没有 GEMINI_API_KEY 时不生成，返回 False。"""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        return False
+    config = {
+        "geminiKey": key,
+        "models": [m for m in [os.environ.get("GEMINI_MODEL")] if m] + CONSOLE_MODELS,
+        "repo": os.environ.get("GITHUB_REPOSITORY") or show["repo"],
+        "workflow": "new-episode.yml",
+        "showTitle": show["title"],
+        "houseStyle": show.get("house_style", "").strip(),
+        "episodes": [{"number": e.number, "title": e.title} for e in episodes],
+    }
+    # "</" 会提前结束 <script>，转义掉
+    payload = json.dumps(config, ensure_ascii=False).replace("</", "<\\/")
+    template = (ROOT / "console" / "index.html").read_text(encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(template.replace("__CONFIG__", payload), encoding="utf-8")
+    return True
+
+
 def main() -> None:
-    out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "_site"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("out_dir", nargs="?", default=ROOT / "_site", type=Path)
+    parser.add_argument("--console", type=Path, help="未加密的策划台写到哪里")
+    args = parser.parse_args()
+    out_dir = args.out_dir
     show = tomllib.loads((ROOT / "show.toml").read_text(encoding="utf-8"))
     episodes = load_episodes(ROOT / "episodes")
 
@@ -211,6 +244,9 @@ def main() -> None:
     build_feed(show, episodes).write(out_dir / "feed.xml", encoding="utf-8", xml_declaration=True)
     (out_dir / "index.html").write_text(render_index(show, episodes), encoding="utf-8")
     print(f"已生成 {out_dir}：{len(episodes)} 期")
+    if args.console:
+        built = build_console(show, episodes, args.console)
+        print("已生成策划台（未加密）" if built else "没有 GEMINI_API_KEY，跳过策划台")
 
 
 if __name__ == "__main__":

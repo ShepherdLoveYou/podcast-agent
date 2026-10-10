@@ -8,6 +8,7 @@ on:
       - episodes/**
       - show.toml
       - cover.jpg
+      - console/**
       - scripts/build_site.py
       - .github/workflows/publish.yml
   workflow_dispatch:
@@ -31,8 +32,36 @@ jobs:
         with:
           python-version: "3.13"
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
       - name: 生成 feed 和站点
-        run: python scripts/build_site.py _site
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/build_site.py _site --console _build/console/index.html
+
+      # 策划台里写有 Gemini key，只发布加密后的版本。两个密钥缺任何一个就不发布策划台，其余照常
+      - name: 加密策划台
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          REPO_ID: ${{ github.repository_id }}
+        run: |
+          set -euo pipefail
+          if [ ! -f _build/console/index.html ] || [ -z "${SITE_PASSWORD:-}" ]; then
+            echo "缺少 GEMINI_API_KEY 或 SITE_PASSWORD，这次不发布策划台"
+            exit 0
+          fi
+          # 盐固定为本仓库 id 的哈希，这样"记住这台设备"在每次重新发布后仍然有效
+          salt=$(printf 'podcast-agent-%s' "$REPO_ID" | sha256sum | cut -c1-32)
+          npx --yes staticrypt@3 _build/console/index.html -d _site/console -c false --salt "$salt" \
+            -p "$SITE_PASSWORD" --short --remember 30 \
+            --template-title "策划台" --template-instructions "输入口令打开策划台" --template-button "打开" \
+            --template-placeholder "口令" --template-remember "在这台设备上记住 30 天" --template-error "口令不对" >/dev/null
+          # 发布前自检：用口令解密刚加密的页面，必须和生成的页面一模一样
+          npx --yes staticrypt@3 _site/console/index.html --decrypt -c false --salt "$salt" -p "$SITE_PASSWORD" -d _check >/dev/null
+          cmp -s _check/index.html _build/console/index.html || { echo "::error::加密后的策划台解不回原页面"; exit 1; }
+          echo "策划台已加密"
 
       - uses: actions/upload-pages-artifact@v5
         with:
