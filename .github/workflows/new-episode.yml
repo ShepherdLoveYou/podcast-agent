@@ -82,13 +82,8 @@ jobs:
           PY
           notebooklm login --master-token-refresh
 
+      # 表单输入由脚本从事件文件里读：写成 env 的话，来源链接会原样出现在公开日志里
       - name: 生成音频并写发布信息
-        env:
-          SOURCES: ${{ inputs.sources }}
-          FOCUS: ${{ inputs.focus }}
-          FORMAT: ${{ inputs.format }}
-          LENGTH: ${{ inputs.length }}
-          NOTEBOOK: ${{ inputs.notebook }}
         run: python scripts/generate_episode.py
 
       - uses: actions/upload-artifact@v7

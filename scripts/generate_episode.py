@@ -1,15 +1,15 @@
 """建笔记本、加来源、生成并下载一期音频，再让 NotebookLM 按成品写发布信息。
 
-由 new-episode 工作流调用。输入走环境变量：
-  SOURCES   来源链接，空白分隔
-  FOCUS     本期着重的方面，可空
-  FORMAT    deep-dive | brief | critique | debate
-  LENGTH    default | short | long
-  LANGUAGE  默认 zh_Hans
-  NOTEBOOK  已有笔记本 ID；给了就不重新生成，只下载并写发布信息
-  OUT_DIR   默认 out
+由 new-episode 工作流调用。输入是工作流表单里的这几项（本机运行时用同名的大写环境变量）：
+  sources   来源链接，空白分隔
+  focus     本期着重的方面，可空
+  format    deep-dive | brief | critique | debate
+  length    default | short | long
+  notebook  已有笔记本 ID；给了就不重新生成，只下载并写发布信息
+另有环境变量 LANGUAGE（默认 zh_Hans）和 OUT_DIR（默认 out）。
 
 输出到 OUT_DIR：episode.m4a、meta.json、notes.json、transcript.txt。
+来源的标题和链接不写进任何输出，也不出现在日志里。
 """
 
 from __future__ import annotations
@@ -29,13 +29,13 @@ AUDIO_SOURCE_TIMEOUT_S = 600
 
 NOTES_PROMPT = """只根据"{audio}"这段播客音频里两位主持人实际说的内容，为这一期节目写发布信息。
 
-只输出一个 JSON 对象，不要任何其他文字，不要引用标记，格式如下：
+不要提到原始来源的标题、作者、频道或链接。只输出一个 JSON 对象，不要任何其他文字，不要引用标记，格式如下：
 {{"title": "不超过 30 个字的中文标题，不要带期数", "description": "150 到 250 字的中文简介，一段话，说明这期聊了什么、对谁有用", "highlights": ["3 到 5 条本期要点，每条不超过 30 个字"]}}
 """
 
 QA_PROMPT = """对照这个笔记本里除"{audio}"以外的原始来源，检查"{audio}"这段播客音频：有没有与原始来源明显不符、或者原始来源里完全没有依据的说法？
 
-最多列 5 条，每条一句话，用"- "开头；如果没有发现，只回答"未发现明显问题"。不要引用标记。
+最多列 5 条，每条一句话，用"- "开头；如果没有发现，只回答"未发现明显问题"。不要引用标记，也不要写出原始来源的标题、作者或链接，提到时只说"来源"。
 """
 
 CITATION = re.compile(r"\s*\[\d+(?:\s*[-,，]\s*\d+)*\]")
@@ -43,6 +43,25 @@ CITATION = re.compile(r"\s*\[\d+(?:\s*[-,，]\s*\d+)*\]")
 
 class NblmError(RuntimeError):
     pass
+
+
+def mask(value: str) -> None:
+    """让 GitHub Actions 在公开日志里把这个值打码。"""
+    if value and os.environ.get("GITHUB_ACTIONS"):
+        print(f"::add-mask::{value}", flush=True)
+
+
+def read_inputs() -> dict[str, str]:
+    """工作流表单的输入。
+
+    CI 里从事件文件读，不走环境变量：步骤的环境变量会原样出现在公开日志里。
+    """
+    inputs: dict = {}
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if event_path and Path(event_path).is_file():
+        inputs = json.loads(Path(event_path).read_text(encoding="utf-8")).get("inputs") or {}
+    names = ("sources", "focus", "format", "length", "notebook")
+    return {name: (os.environ.get(name.upper()) or inputs.get(name) or "").strip() for name in names}
 
 
 def nblm(*args: str) -> dict:
@@ -83,10 +102,12 @@ def generate(sources: list[str], focus: str, fmt: str, length: str, language: st
     # 先把 ID 打出来：生成成功但后面失败时，可以用它重跑而不再消耗配额
     print(f"笔记本 ID：{notebook_id}")
 
-    for url in sources:
+    for index, url in enumerate(sources, 1):
+        mask(url)
         source = nblm("source", "add", url, "-n", notebook_id)["source"]
+        mask(source.get("title") or "")
         nblm("source", "wait", source["id"], "-n", notebook_id, "--timeout", str(SOURCE_TIMEOUT_S))
-        print(f"来源就绪：{source.get('title')}")
+        print(f"第 {index} 个来源就绪")
 
     args = ["generate", "audio", "-n", notebook_id, "--format", fmt, "--length", length]
     args += ["--language", language, "--wait", "--timeout", str(GENERATE_TIMEOUT_S)]
@@ -151,12 +172,13 @@ def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
 
 
 def main() -> None:
-    sources = os.environ.get("SOURCES", "").split()
-    focus = os.environ.get("FOCUS", "").strip()
-    fmt = os.environ.get("FORMAT") or "deep-dive"
-    length = os.environ.get("LENGTH") or "default"
+    inputs = read_inputs()
+    sources = inputs["sources"].split()
+    focus = inputs["focus"]
+    fmt = inputs["format"] or "deep-dive"
+    length = inputs["length"] or "default"
     language = os.environ.get("LANGUAGE") or "zh_Hans"
-    notebook_id = os.environ.get("NOTEBOOK", "").strip()
+    notebook_id = inputs["notebook"]
     out_dir = Path(os.environ.get("OUT_DIR") or "out")
     audio_path = out_dir / "episode.m4a"
 
@@ -178,19 +200,15 @@ def main() -> None:
         if not audio_path.is_file() or audio_path.stat().st_size == 0:
             raise NblmError("下载结果为空")
         print(f"已下载：{audio_path}（{audio_path.stat().st_size / 1e6:.1f} MB）")
-
-        listed = nblm("source", "list", "-n", notebook_id)["sources"]
     except NblmError as err:
         sys.exit(str(err))
 
-    used = [{"title": s["title"], "url": s["url"]} for s in listed if s["title"] != audio_path.name]
     meta = {
         "format": fmt,
         "length": length,
         "language": language,
         "focus": focus,
         "notebook_id": notebook_id,
-        "sources": used,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     (out_dir / "meta.json").write_text(
@@ -203,8 +221,7 @@ def main() -> None:
     except (NblmError, ValueError, KeyError) as err:
         # 音频已经到手，写不出发布信息也不让这次运行失败，留给人在 PR 里补
         print(f"::warning::没能自动写出发布信息：{err}")
-        title = used[0]["title"][:30] if used else "未命名"
-        notes = {"title": title, "description": "", "highlights": [], "qa": "", "fallback_reason": str(err)}
+        notes = {"title": "未命名", "description": "", "highlights": [], "qa": "", "fallback_reason": str(err)}
     (out_dir / "notes.json").write_text(
         json.dumps(notes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )

@@ -1,6 +1,6 @@
 """把一次生成的产物整理成 episodes/NNN/，供 new-episode 工作流开 PR。
 
-读 OUT_DIR（默认 out）里的 episode.m4a、meta.json、notes.json、transcript.txt，
+读 OUT_DIR（默认 out）里的 episode.m4a、notes.json、transcript.txt，
 写 EPISODES_DIR（默认 episodes）/NNN/ 下的 audio.mp3、notes.md、meta.json、transcript.txt，
 并把 PR 正文写到 OUT_DIR/pr_body.md。
 """
@@ -41,30 +41,17 @@ def next_number(episodes_dir: Path) -> int:
     return max(taken, default=0) + 1
 
 
-def source_lines(sources: list[dict]) -> list[str]:
-    lines = []
-    for source in sources:
-        # 方括号会打断 Markdown 链接，换成全角
-        title = source["title"].replace("[", "【").replace("]", "】")
-        lines.append(f"- [{title}]({source['url']})" if source.get("url") else f"- {title}")
-    return lines
-
-
-def render_notes(title: str, notes: dict, sources: list[dict]) -> str:
+def render_notes(title: str, notes: dict) -> str:
     parts = [f"# {title}"]
     if notes.get("description"):
         parts.append(f"**本期看点**：{notes['description']}")
     if notes.get("highlights"):
         parts.append("## 本期要点")
         parts.append("\n".join(f"- {h}" for h in notes["highlights"]))
-    if sources:
-        parts.append("## 来源")
-        parts.append("\n".join(source_lines(sources)))
     return "\n\n".join(parts) + "\n"
 
 
-def render_pr_body(number: str, title: str, notes: dict, sources: list[dict],
-                   duration: int, audio_bytes: int) -> str:
+def render_pr_body(number: str, title: str, notes: dict, duration: int, audio_bytes: int) -> str:
     parts = [
         f"## {title}",
         f"合并这个 PR 就会发布这一期。合并前可以直接改 `episodes/{number}/notes.md` 里的标题和简介。",
@@ -80,8 +67,6 @@ def render_pr_body(number: str, title: str, notes: dict, sources: list[dict],
         parts.append("### 本期要点\n\n" + "\n".join(f"- {h}" for h in notes["highlights"]))
     if notes.get("qa"):
         parts.append(f"### 质检备注（AI 对照来源生成，仅供参考）\n\n{notes['qa']}")
-    if sources:
-        parts.append("### 来源\n\n" + "\n".join(source_lines(sources)))
     return "\n\n".join(parts) + "\n"
 
 
@@ -90,9 +75,7 @@ def main() -> None:
     episodes_dir = Path(os.environ.get("EPISODES_DIR") or "episodes")
     episodes_dir.mkdir(parents=True, exist_ok=True)
 
-    generated = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
     notes = json.loads((out_dir / "notes.json").read_text(encoding="utf-8"))
-    sources = generated.get("sources", [])
 
     n = next_number(episodes_dir)
     number = f"{n:03d}"
@@ -103,12 +86,11 @@ def main() -> None:
     transcode(out_dir / "episode.m4a", audio)
     duration = probe_duration(audio)
 
-    (episode_dir / "notes.md").write_text(render_notes(title, notes, sources), encoding="utf-8")
+    (episode_dir / "notes.md").write_text(render_notes(title, notes), encoding="utf-8")
     meta = {
         "guid": str(uuid.uuid4()),
         "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duration_seconds": duration,
-        "sources": sources,
     }
     (episode_dir / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -117,7 +99,7 @@ def main() -> None:
         shutil.copyfile(out_dir / "transcript.txt", episode_dir / "transcript.txt")
 
     (out_dir / "pr_body.md").write_text(
-        render_pr_body(number, title, notes, sources, duration, audio.stat().st_size),
+        render_pr_body(number, title, notes, duration, audio.stat().st_size),
         encoding="utf-8",
     )
     print(f"已整理：{episode_dir}（{title}）")
