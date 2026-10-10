@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+# Google 凭据绝不能进仓库
+master_token.json
+storage_state.json
+.notebooklm/
+out/

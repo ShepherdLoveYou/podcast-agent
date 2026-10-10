@@ -1,0 +1,97 @@
+name: new-episode
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 来源链接，2–3 个，用空格分隔
+        required: false
+        type: string
+      focus:
+        description: 本期着重于哪些方面（可留空）
+        required: false
+        type: string
+      format:
+        description: 格式
+        type: choice
+        default: deep-dive
+        options:
+          - deep-dive
+          - brief
+          - critique
+          - debate
+      length:
+        description: 时长
+        type: choice
+        default: default
+        options:
+          - default
+          - short
+      notebook:
+        description: 已有笔记本 ID：只重新下载，不重新生成（一般留空）
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# 同一时间只跑一期，避免两次生成抢同一份配额
+concurrency:
+  group: new-episode
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    environment: notebooklm
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: 安装依赖
+        run: |
+          pip install uv
+          uv sync --frozen --no-dev
+
+      - name: 恢复 NotebookLM 登录
+        env:
+          NOTEBOOKLM_MASTER_TOKEN_JSON: ${{ secrets.NOTEBOOKLM_MASTER_TOKEN_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NOTEBOOKLM_MASTER_TOKEN_JSON:-}" ]; then
+            echo "缺少 secret NOTEBOOKLM_MASTER_TOKEN_JSON"
+            exit 1
+          fi
+          umask 077
+          dir="$HOME/.notebooklm/profiles/default"
+          mkdir -p "$dir"
+          printf '%s' "$NOTEBOOKLM_MASTER_TOKEN_JSON" > "$dir/master_token.json"
+          unset NOTEBOOKLM_MASTER_TOKEN_JSON
+          # 这个仓库的日志是公开的：把账号邮箱和 token 本体都登记成要打码的值
+          python3 - "$dir/master_token.json" <<'PY'
+          import json, sys
+          for value in json.load(open(sys.argv[1])).values():
+              if isinstance(value, str) and value:
+                  print(f"::add-mask::{value}")
+          PY
+          uv run notebooklm login --master-token-refresh
+
+      - name: 生成并下载音频
+        env:
+          SOURCES: ${{ inputs.sources }}
+          FOCUS: ${{ inputs.focus }}
+          FORMAT: ${{ inputs.format }}
+          LENGTH: ${{ inputs.length }}
+          NOTEBOOK: ${{ inputs.notebook }}
+        run: uv run python scripts/generate_episode.py
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: episode-draft
+          path: out/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,12 @@
+[project]
+name = "podcast-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "notebooklm-py[headless]>=0.8.4",
+]
+
+[dependency-groups]
+dev = [
+    "notebooklm-py[browser]>=0.8.4",
+]
