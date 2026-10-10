@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 NS = {
     "itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
     "atom": "http://www.w3.org/2005/Atom",
+    "content": "http://purl.org/rss/1.0/modules/content/",
 }
 INLINE_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
 INLINE_BOLD = re.compile(r"\*\*(.+?)\*\*")
@@ -140,14 +141,16 @@ def build_feed(show: dict, episodes: list[Episode]) -> ET.ElementTree:
         item = ET.SubElement(channel, "item")
         add(item, "title", episode.title)
         add(item, "description", episode.body_html)
+        add(item, "content:encoded", episode.body_html)
         add(item, "link", f"{site}/#{episode.number}")
         add(item, "guid", episode.guid, isPermaLink="false")
         add(item, "pubDate", rfc822(episode.published_at))
         add(item, "enclosure", url=f"{site}/audio/{episode.number}.mp3",
             length=str(episode.audio.stat().st_size), type="audio/mpeg")
+        add(item, "itunes:author", show["author"])
         add(item, "itunes:duration", hms(episode.duration_seconds))
         add(item, "itunes:explicit", explicit)
-        add(item, "itunes:episode", str(int(episode.number)))
+        # 不写 <itunes:episode>：节目是 episodic 类型，校验工具要求这类节目不带期号
         add(item, "itunes:episodeType", "full")
         add(item, "itunes:image", href=cover_url)
 
