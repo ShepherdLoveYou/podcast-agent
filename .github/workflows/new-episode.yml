@@ -56,6 +56,8 @@ jobs:
         run: |
           pip install uv
           uv sync --frozen --no-dev
+          # 后面的步骤直接用 .venv 里的命令：uv run 会把开发依赖（Playwright）也装上
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: 恢复 NotebookLM 登录
         env:
@@ -78,7 +80,7 @@ jobs:
               if isinstance(value, str) and value:
                   print(f"::add-mask::{value}")
           PY
-          uv run notebooklm login --master-token-refresh
+          notebooklm login --master-token-refresh
 
       - name: 生成并下载音频
         env:
@@ -87,7 +89,7 @@ jobs:
           FORMAT: ${{ inputs.format }}
           LENGTH: ${{ inputs.length }}
           NOTEBOOK: ${{ inputs.notebook }}
-        run: uv run python scripts/generate_episode.py
+        run: python scripts/generate_episode.py
 
       - uses: actions/upload-artifact@v7
         with:

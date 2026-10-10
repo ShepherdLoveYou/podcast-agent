@@ -78,7 +78,8 @@ def generate(sources: list[str], focus: str, fmt: str, length: str, language: st
             args += ["--prompt-file", str(prompt_file)]
         print("开始生成音频，通常要十几分钟……")
         result = nblm(*args)
-    print(f"生成结果：{json.dumps(result, ensure_ascii=False)}")
+    # 只打状态：完整结果里带音频的直链，没必要留在公开日志里
+    print(f"生成完成：状态 {result.get('status')}，任务 {result.get('task_id')}")
 
     return {"notebook_id": notebook_id, "sources": added}
 
