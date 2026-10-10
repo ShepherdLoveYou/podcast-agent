@@ -65,6 +65,10 @@ def render_pr_body(number: str, title: str, notes: dict, duration: int, audio_by
         parts.append(f"### 简介\n\n{notes['description']}")
     if notes.get("highlights"):
         parts.append("### 本期要点\n\n" + "\n".join(f"- {h}" for h in notes["highlights"]))
+    if "source_mentions" in notes:
+        found = notes["source_mentions"]
+        listing = "\n".join(f"- {snippet}" for snippet in found) if found else "未发现。"
+        parts.append(f"### 有没有暴露出处（按转写自动查词，可能误报）\n\n{listing}")
     if notes.get("qa"):
         parts.append(f"### 质检备注（AI 对照来源生成，仅供参考）\n\n{notes['qa']}")
     return "\n\n".join(parts) + "\n"

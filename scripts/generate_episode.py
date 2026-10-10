@@ -40,6 +40,10 @@ QA_PROMPT = """对照这个笔记本里除"{audio}"以外的原始来源，检�
 最多列 5 条，每条一句话，用"- "开头；如果没有发现，只回答"未发现明显问题"。不要引用标记，也不要写出原始来源的标题、作者或链接，提到时只说"来源"。
 """
 
+# 成品里不该出现的、会暴露内容另有出处的词。转写是繁体，所以两种写法都查
+SOURCE_WORDS = re.compile(
+    "资料|資料|来源|來源|素材|文档|文檔|文章|报告|報告|讲座|講座|作者|原文|文字记录|文字記錄"
+)
 CITATION = re.compile(r"\s*\[\d+(?:\s*[-,，]\s*\d+)*\]")
 
 
@@ -81,10 +85,12 @@ def nblm(*args: str) -> dict:
 
 
 def compose_focus(episode_focus: str) -> str:
-    """节目固定的听众说明（show.toml 的 audience_note）加上这一期自己的着重点。"""
+    """节目固定的风格说明（show.toml 的 house_style）加上这一期自己的着重点。"""
     show = tomllib.loads((ROOT / "show.toml").read_text(encoding="utf-8"))
-    parts = [show.get("audience_note", "").strip(), episode_focus.strip()]
-    return "\n".join(part for part in parts if part)
+    parts = [show.get("house_style", "").strip()]
+    if episode_focus.strip():
+        parts.append(f"【这一期的着重点】\n{episode_focus.strip()}")
+    return "\n\n".join(part for part in parts if part)
 
 
 def ensure_audio_quota() -> None:
@@ -156,6 +162,15 @@ def tidy_transcript(text: str) -> str:
     return re.sub(r"(?<=[^\x00-\x7f]) (?=[^\x00-\x7f])", "", text)
 
 
+def find_source_mentions(transcript: str, limit: int = 8) -> list[str]:
+    """在转写里找暴露出处的词，带上前后文，供人在 PR 里判断。"""
+    snippets = []
+    for match in SOURCE_WORDS.finditer(transcript):
+        start, end = max(match.start() - 14, 0), min(match.end() + 14, len(transcript))
+        snippets.append(transcript[start:end].replace("\n", " "))
+    return snippets[:limit] + ([f"……共 {len(snippets)} 处"] if len(snippets) > limit else [])
+
+
 def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
     """把成品音频加回笔记本，让 NotebookLM 按实际内容写标题、简介和质检备注。"""
     sources = nblm("source", "list", "-n", notebook_id)["sources"]
@@ -166,8 +181,8 @@ def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
     audio_id = audio["id"]
     nblm("source", "wait", audio_id, "-n", notebook_id, "--timeout", str(AUDIO_SOURCE_TIMEOUT_S))
 
-    transcript = nblm("source", "fulltext", audio_id, "-n", notebook_id).get("content", "")
-    (out_dir / "transcript.txt").write_text(tidy_transcript(transcript) + "\n", encoding="utf-8")
+    transcript = tidy_transcript(nblm("source", "fulltext", audio_id, "-n", notebook_id).get("content", ""))
+    (out_dir / "transcript.txt").write_text(transcript + "\n", encoding="utf-8")
 
     answer = ask(notebook_id, NOTES_PROMPT.format(audio=audio_path.name), source_id=audio_id)
     notes = parse_json_object(answer)
@@ -177,6 +192,7 @@ def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
         "description": str(notes["description"]).strip(),
         "highlights": [str(h).strip() for h in notes.get("highlights", [])],
         "qa": qa,
+        "source_mentions": find_source_mentions(transcript),
     }
 
 
