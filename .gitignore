@@ -8,3 +8,5 @@ storage_state.json
 .notebooklm/
 out/
 _site/
+.env
+.playwright-mcp/
