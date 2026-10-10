@@ -1,19 +1,22 @@
-"""建笔记本、加来源、生成并下载一期音频。由 new-episode 工作流调用。
+"""建笔记本、加来源、生成并下载一期音频，再让 NotebookLM 按成品写发布信息。
 
-输入走环境变量：
+由 new-episode 工作流调用。输入走环境变量：
   SOURCES   来源链接，空白分隔
   FOCUS     本期着重的方面，可空
   FORMAT    deep-dive | brief | critique | debate
   LENGTH    default | short | long
   LANGUAGE  默认 zh_Hans
-  NOTEBOOK  已有笔记本 ID；给了就只下载，不重新生成
+  NOTEBOOK  已有笔记本 ID；给了就不重新生成，只下载并写发布信息
   OUT_DIR   默认 out
+
+输出到 OUT_DIR：episode.m4a、meta.json、notes.json、transcript.txt。
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -22,6 +25,24 @@ from pathlib import Path
 
 SOURCE_TIMEOUT_S = 300
 GENERATE_TIMEOUT_S = 2400
+AUDIO_SOURCE_TIMEOUT_S = 600
+
+NOTES_PROMPT = """只根据"{audio}"这段播客音频里两位主持人实际说的内容，为这一期节目写发布信息。
+
+只输出一个 JSON 对象，不要任何其他文字，不要引用标记，格式如下：
+{{"title": "不超过 30 个字的中文标题，不要带期数", "description": "150 到 250 字的中文简介，一段话，说明这期聊了什么、对谁有用", "highlights": ["3 到 5 条本期要点，每条不超过 30 个字"]}}
+"""
+
+QA_PROMPT = """对照这个笔记本里除"{audio}"以外的原始来源，检查"{audio}"这段播客音频：有没有与原始来源明显不符、或者原始来源里完全没有依据的说法？
+
+最多列 5 条，每条一句话，用"- "开头；如果没有发现，只回答"未发现明显问题"。不要引用标记。
+"""
+
+CITATION = re.compile(r"\s*\[\d+(?:\s*[-,，]\s*\d+)*\]")
+
+
+class NblmError(RuntimeError):
+    pass
 
 
 def nblm(*args: str) -> dict:
@@ -31,11 +52,11 @@ def nblm(*args: str) -> dict:
         sys.stderr.write(proc.stderr)
     label = " ".join(args[:2])
     if proc.returncode != 0:
-        sys.exit(f"notebooklm {label} 失败（退出码 {proc.returncode}）：{proc.stdout.strip()}")
+        raise NblmError(f"notebooklm {label} 失败（退出码 {proc.returncode}）：{proc.stdout.strip()}")
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError:
-        sys.exit(f"notebooklm {label} 的输出不是 JSON：{proc.stdout[:500]}")
+        raise NblmError(f"notebooklm {label} 的输出不是 JSON：{proc.stdout[:500]}") from None
 
 
 def ensure_audio_quota() -> None:
@@ -49,24 +70,23 @@ def ensure_audio_quota() -> None:
         return
     if audio.get("has_sufficient_quota") is False:
         resets = {w["kind"]: w["resets_at"] for w in usage["windows"]}
-        sys.exit(f"音频配额不足，不生成。各窗口重置时间：{resets}")
+        raise NblmError(f"音频配额不足，不生成。各窗口重置时间：{resets}")
     print(f"音频配额充足，这次预计消耗 {audio.get('estimated_cost_percent')}%")
 
 
-def generate(sources: list[str], focus: str, fmt: str, length: str, language: str) -> dict:
+def generate(sources: list[str], focus: str, fmt: str, length: str, language: str) -> str:
+    """生成一期音频，返回笔记本 ID。"""
     ensure_audio_quota()
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     notebook_id = nblm("create", f"episode-{stamp}")["notebook"]["id"]
-    # 先把 ID 打出来：生成成功但后面失败时，可以用它只重新下载，不再消耗配额
+    # 先把 ID 打出来：生成成功但后面失败时，可以用它重跑而不再消耗配额
     print(f"笔记本 ID：{notebook_id}")
 
-    added = []
     for url in sources:
         source = nblm("source", "add", url, "-n", notebook_id)["source"]
         nblm("source", "wait", source["id"], "-n", notebook_id, "--timeout", str(SOURCE_TIMEOUT_S))
         print(f"来源就绪：{source.get('title')}")
-        added.append(source)
 
     args = ["generate", "audio", "-n", notebook_id, "--format", fmt, "--length", length]
     args += ["--language", language, "--wait", "--timeout", str(GENERATE_TIMEOUT_S)]
@@ -80,8 +100,54 @@ def generate(sources: list[str], focus: str, fmt: str, length: str, language: st
         result = nblm(*args)
     # 只打状态：完整结果里带音频的直链，没必要留在公开日志里
     print(f"生成完成：状态 {result.get('status')}，任务 {result.get('task_id')}")
+    return notebook_id
 
-    return {"notebook_id": notebook_id, "sources": added}
+
+def ask(notebook_id: str, prompt: str, source_id: str | None = None) -> str:
+    with tempfile.TemporaryDirectory() as tmp:
+        prompt_file = Path(tmp) / "prompt.txt"
+        prompt_file.write_text(prompt, encoding="utf-8")
+        args = ["ask", "--prompt-file", str(prompt_file), "-n", notebook_id]
+        if source_id:
+            args += ["-s", source_id]
+        return CITATION.sub("", nblm(*args)["answer"]).strip()
+
+
+def parse_json_object(text: str) -> dict:
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise ValueError(f"回答里没有 JSON：{text[:200]}")
+    return json.loads(text[start : end + 1])
+
+
+def tidy_transcript(text: str) -> str:
+    """NotebookLM 的转写每个字之间有空格、段落之间是两个空格，整理成正常文本。"""
+    text = text.strip().replace("  ", "\n")
+    return re.sub(r"(?<=[^\x00-\x7f]) (?=[^\x00-\x7f])", "", text)
+
+
+def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
+    """把成品音频加回笔记本，让 NotebookLM 按实际内容写标题、简介和质检备注。"""
+    sources = nblm("source", "list", "-n", notebook_id)["sources"]
+    audio = next((s for s in sources if s["title"] == audio_path.name), None)
+    if audio is None:
+        added = nblm("source", "add", str(audio_path), "-n", notebook_id, "--timeout", "300")
+        audio = added["source"]
+    audio_id = audio["id"]
+    nblm("source", "wait", audio_id, "-n", notebook_id, "--timeout", str(AUDIO_SOURCE_TIMEOUT_S))
+
+    transcript = nblm("source", "fulltext", audio_id, "-n", notebook_id).get("content", "")
+    (out_dir / "transcript.txt").write_text(tidy_transcript(transcript) + "\n", encoding="utf-8")
+
+    answer = ask(notebook_id, NOTES_PROMPT.format(audio=audio_path.name), source_id=audio_id)
+    notes = parse_json_object(answer)
+    qa = ask(notebook_id, QA_PROMPT.format(audio=audio_path.name))
+    return {
+        "title": str(notes["title"]).strip(),
+        "description": str(notes["description"]).strip(),
+        "highlights": [str(h).strip() for h in notes.get("highlights", [])],
+        "qa": qa,
+    }
 
 
 def main() -> None:
@@ -92,30 +158,55 @@ def main() -> None:
     language = os.environ.get("LANGUAGE") or "zh_Hans"
     notebook_id = os.environ.get("NOTEBOOK", "").strip()
     out_dir = Path(os.environ.get("OUT_DIR") or "out")
+    audio_path = out_dir / "episode.m4a"
 
-    meta: dict = {"format": fmt, "length": length, "language": language, "focus": focus}
-    if notebook_id:
-        print(f"使用已有笔记本 {notebook_id}，只下载不生成")
-        meta["notebook_id"] = notebook_id
-    else:
+    if not notebook_id:
         if not sources:
             sys.exit("SOURCES 为空：至少给一个来源链接")
         not_links = [s for s in sources if not s.startswith(("http://", "https://"))]
         if not_links:
             sys.exit(f"这些不是链接：{not_links}")
-        meta.update(generate(sources, focus, fmt, length, language))
-        notebook_id = meta["notebook_id"]
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    audio_path = out_dir / "episode.m4a"
-    nblm("download", "audio", str(audio_path), "-n", notebook_id, "--force")
-    if not audio_path.is_file() or audio_path.stat().st_size == 0:
-        sys.exit("下载结果为空")
-    print(f"已下载：{audio_path}（{audio_path.stat().st_size / 1e6:.1f} MB）")
+    try:
+        if notebook_id:
+            print(f"使用已有笔记本 {notebook_id}，不重新生成")
+        else:
+            notebook_id = generate(sources, focus, fmt, length, language)
 
-    meta["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        nblm("download", "audio", str(audio_path), "-n", notebook_id, "--force")
+        if not audio_path.is_file() or audio_path.stat().st_size == 0:
+            raise NblmError("下载结果为空")
+        print(f"已下载：{audio_path}（{audio_path.stat().st_size / 1e6:.1f} MB）")
+
+        listed = nblm("source", "list", "-n", notebook_id)["sources"]
+    except NblmError as err:
+        sys.exit(str(err))
+
+    used = [{"title": s["title"], "url": s["url"]} for s in listed if s["title"] != audio_path.name]
+    meta = {
+        "format": fmt,
+        "length": length,
+        "language": language,
+        "focus": focus,
+        "notebook_id": notebook_id,
+        "sources": used,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
     (out_dir / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+    try:
+        notes = write_notes(notebook_id, audio_path, out_dir)
+        print(f"发布信息已写好：{notes['title']}")
+    except (NblmError, ValueError, KeyError) as err:
+        # 音频已经到手，写不出发布信息也不让这次运行失败，留给人在 PR 里补
+        print(f"::warning::没能自动写出发布信息：{err}")
+        title = used[0]["title"][:30] if used else "未命名"
+        notes = {"title": title, "description": "", "highlights": [], "qa": "", "fallback_reason": str(err)}
+    (out_dir / "notes.json").write_text(
+        json.dumps(notes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
 

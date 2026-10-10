@@ -1,0 +1,16 @@
+# 节目信息，生成 feed.xml 时使用
+
+title = "思考者 ThINKer"
+author = "JING"
+language = "zh-cn"
+description = "欢迎来到 思考者 ThINKer 播客。这是一档拒绝技术神话、专注硬核推演的播客。我们不聊科技媒体的早报噪音，只做一件事：用商业逻辑的第一性原理，拆解AI浪潮与投资本质。拒绝碎片化的情绪炒作, 让我们剥离噪音，深度思考。"
+category = "Business"
+subcategory = "Careers"
+explicit = false
+cover = "cover.jpg"
+
+# Pages 站点地址，feed 和音频的链接都从它拼出来
+site_url = "https://shepherdloveyou.github.io/podcast-agent"
+
+# 可选：写进 feed 的联系邮箱。有些平台认领节目时要用它收验证码，会公开可见
+# owner_email = ""

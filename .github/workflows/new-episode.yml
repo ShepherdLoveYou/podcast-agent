@@ -28,7 +28,7 @@ on:
           - default
           - short
       notebook:
-        description: 已有笔记本 ID：只重新下载，不重新生成（一般留空）
+        description: 已有笔记本 ID：不重新生成，只重新下载并开 PR（一般留空）
         required: false
         type: string
 
@@ -82,7 +82,7 @@ jobs:
           PY
           notebooklm login --master-token-refresh
 
-      - name: 生成并下载音频
+      - name: 生成音频并写发布信息
         env:
           SOURCES: ${{ inputs.sources }}
           FOCUS: ${{ inputs.focus }}
@@ -97,3 +97,45 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 14
+
+  # 不碰 NotebookLM 凭据，只负责把产物整理成一期并开 PR；合并 PR 才会发布
+  propose:
+    needs: generate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: episode-draft
+          path: out
+
+      - name: 安装 ffmpeg
+        run: |
+          command -v ffmpeg >/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          }
+
+      - name: 整理成一期
+        id: package
+        run: python3 scripts/package_episode.py
+
+      - name: 开 PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ steps.package.outputs.number }}
+          TITLE: ${{ steps.package.outputs.title }}
+        run: |
+          set -euo pipefail
+          branch="episode/$NUMBER-$GITHUB_RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add "episodes/$NUMBER"
+          git commit -m "Add episode $NUMBER"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "$TITLE" --body-file out/pr_body.md
