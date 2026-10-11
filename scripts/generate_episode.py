@@ -32,7 +32,7 @@ AUDIO_SOURCE_TIMEOUT_S = 600
 NOTES_PROMPT = """只根据"{audio}"这段播客音频里两位主持人实际说的内容，为这一期节目写发布信息。
 
 不要提到原始来源的标题、作者、频道或链接。只输出一个 JSON 对象，不要任何其他文字，不要引用标记，格式如下：
-{{"title": "不超过 30 个字的中文标题，不要带期数", "description": "150 到 250 字的中文简介，一段话，说明这期聊了什么、对谁有用", "highlights": ["3 到 5 条本期要点，每条不超过 30 个字"]}}
+{{"title": "不超过 30 个字的中文标题，不要带期数", "description": "150 到 250 字的中文简介，一段话，说明这期聊了什么、对谁有用", "highlights": ["3 到 5 条本期要点，每条不超过 30 个字"], "disclaimer": "这一期如果谈到投资理财、医疗健康或法律问题，写一句对应的声明，例如：本期内容仅为观点分享，不构成投资建议。没有谈到就留空字符串"}}
 """
 
 QA_PROMPT = """对照这个笔记本里除"{audio}"以外的原始来源，检查"{audio}"这段播客音频：有没有与原始来源明显不符、或者原始来源里完全没有依据的说法？
@@ -191,6 +191,7 @@ def write_notes(notebook_id: str, audio_path: Path, out_dir: Path) -> dict:
         "title": str(notes["title"]).strip(),
         "description": str(notes["description"]).strip(),
         "highlights": [str(h).strip() for h in notes.get("highlights", [])],
+        "disclaimer": str(notes.get("disclaimer") or "").strip(),
         "qa": qa,
         "source_mentions": find_source_mentions(transcript),
     }

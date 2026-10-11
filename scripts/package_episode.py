@@ -48,6 +48,8 @@ def render_notes(title: str, notes: dict) -> str:
     if notes.get("highlights"):
         parts.append("## 本期要点")
         parts.append("\n".join(f"- {h}" for h in notes["highlights"]))
+    if notes.get("disclaimer"):
+        parts.append(notes["disclaimer"])
     return "\n\n".join(parts) + "\n"
 
 
@@ -65,6 +67,8 @@ def render_pr_body(number: str, title: str, notes: dict, duration: int, audio_by
         parts.append(f"### 简介\n\n{notes['description']}")
     if notes.get("highlights"):
         parts.append("### 本期要点\n\n" + "\n".join(f"- {h}" for h in notes["highlights"]))
+    if notes.get("disclaimer"):
+        parts.append(f"简介末尾会带上这句声明：{notes['disclaimer']}")
     if "source_mentions" in notes:
         found = notes["source_mentions"]
         listing = "\n".join(f"- {snippet}" for snippet in found) if found else "未发现。"
